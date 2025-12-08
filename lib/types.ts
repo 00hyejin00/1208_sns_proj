@@ -81,6 +81,26 @@ export interface UserStats extends User {
 }
 
 /**
+ * 게시물 상세 정보 (API 응답)
+ * post_stats 뷰와 users, comments 테이블을 조인한 결과
+ */
+export interface PostWithDetails extends PostStats {
+  user: {
+    id: string;
+    name: string;
+  };
+  recent_comments: Array<{
+    id: string;
+    content: string;
+    user: {
+      id: string;
+      name: string;
+    };
+    created_at: string;
+  }>;
+}
+
+/**
  * API 응답 타입
  * API Routes에서 사용하는 공통 응답 구조
  */
@@ -88,5 +108,6 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
   message?: string;
+  success?: boolean;
 }
 

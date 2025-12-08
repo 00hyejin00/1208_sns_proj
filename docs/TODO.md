@@ -28,7 +28,7 @@
 # 📋 Mini Instagram - 개발 TODO 리스트
 
 
-
+## 1. 기본 세팅
 
 - [x] Tailwind CSS 설정 (인스타 컬러 스키마)
   - [x] `app/globals.css`에 Instagram 컬러 변수 추가
@@ -64,26 +64,26 @@
 
 ## 3. 홈 피드 페이지
 
-- [x] `app/(main)/page.tsx` 생성 (임시 페이지 생성 완료, PostFeed 통합 필요)
-  - [ ] PostFeed 컴포넌트 통합
+- [x] `app/(main)/page.tsx` 생성
+  - [x] PostFeed 컴포넌트 통합
   - [x] 배경색 #FAFAFA 설정
-- [ ] `components/post/PostCard.tsx`
-  - [ ] 헤더 (프로필 이미지 32px, 사용자명, 시간, ⋯ 메뉴)
-  - [ ] 이미지 영역 (1:1 정사각형)
-  - [ ] 액션 버튼 (좋아요, 댓글, 공유, 북마크)
-  - [ ] 좋아요 수 표시
-  - [ ] 캡션 (사용자명 Bold + 내용, 2줄 초과 시 "... 더 보기")
-  - [ ] 댓글 미리보기 (최신 2개)
-- [ ] `components/post/PostCardSkeleton.tsx`
-  - [ ] 로딩 UI (Skeleton + Shimmer 효과)
-- [ ] `components/post/PostFeed.tsx`
-  - [ ] 게시물 목록 렌더링
-  - [ ] 무한 스크롤 (Intersection Observer)
-  - [ ] 페이지네이션 (10개씩)
-- [ ] `app/api/posts/route.ts`
-  - [ ] GET: 게시물 목록 조회 (시간 역순 정렬)
-  - [ ] 페이지네이션 지원 (limit, offset)
-  - [ ] userId 파라미터 지원 (프로필 페이지용)
+- [x] `components/post/PostCard.tsx`
+  - [x] 헤더 (프로필 이미지 32px, 사용자명, 시간, ⋯ 메뉴)
+  - [x] 이미지 영역 (1:1 정사각형)
+  - [x] 액션 버튼 (좋아요, 댓글, 공유, 북마크)
+  - [x] 좋아요 수 표시
+  - [x] 캡션 (사용자명 Bold + 내용, 2줄 초과 시 "... 더 보기")
+  - [x] 댓글 미리보기 (최신 2개)
+- [x] `components/post/PostCardSkeleton.tsx`
+  - [x] 로딩 UI (Skeleton + Shimmer 효과)
+- [x] `components/post/PostFeed.tsx`
+  - [x] 게시물 목록 렌더링
+  - [x] 무한 스크롤 (Intersection Observer)
+  - [x] 페이지네이션 (10개씩)
+- [x] `app/api/posts/route.ts`
+  - [x] GET: 게시물 목록 조회 (시간 역순 정렬)
+  - [x] 페이지네이션 지원 (limit, offset)
+  - [x] userId 파라미터 지원 (프로필 페이지용)
 
 ## 4. 좋아요 기능
 
@@ -204,9 +204,9 @@
 - [ ] 좋아요 애니메이션
   - [ ] 클릭 시 scale(1.3) → scale(1) (0.15초)
   - [ ] 더블탭 시 큰 하트 fade in/out (1초)
-- [ ] 로딩 상태
-  - [ ] Skeleton UI (PostCardSkeleton)
-  - [ ] Shimmer 효과
+- [x] 로딩 상태
+  - [x] Skeleton UI (PostCardSkeleton)
+  - [x] Shimmer 효과
 
 ## 12. 에러 핸들링 및 최적화
 
@@ -214,9 +214,9 @@
   - [ ] API 에러 처리
   - [ ] 사용자 친화적 에러 메시지
   - [ ] 네트워크 에러 처리
-- [ ] 이미지 최적화
-  - [ ] Next.js Image 컴포넌트 사용
-  - [ ] Lazy loading
+- [x] 이미지 최적화
+  - [x] Next.js Image 컴포넌트 사용
+  - [x] Lazy loading
 - [ ] 성능 최적화
   - [ ] React.memo 적용 (필요한 컴포넌트)
   - [ ] useMemo, useCallback 활용

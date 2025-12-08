@@ -153,3 +153,25 @@
     --font-bold: 700;
   }
 }
+
+/* Shimmer 애니메이션 (Skeleton UI용) */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 0%,
+    #f8f8f8 20%,
+    #f0f0f0 40%,
+    #f0f0f0 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
