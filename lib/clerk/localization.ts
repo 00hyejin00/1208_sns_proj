@@ -21,7 +21,7 @@ import type { LocalizationResource } from "@clerk/types";
  * import { koKR } from '@/lib/clerk/localization';
  *
  * <ClerkProvider localization={koKR}>
- *   {/* ... */}
+ *   {children}
  * </ClerkProvider>
  * ```
  */
@@ -38,7 +38,7 @@ export { koKR } from "@clerk/localizations";
  * import { customKoKR } from '@/lib/clerk/localization';
  *
  * <ClerkProvider localization={customKoKR}>
- *   {/* ... */}
+ *   {children}
  * </ClerkProvider>
  * ```
  *
