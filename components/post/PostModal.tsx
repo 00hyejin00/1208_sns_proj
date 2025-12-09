@@ -150,13 +150,23 @@ export default function PostModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[90vw] md:max-w-[900px] lg:max-w-[1000px] h-[90vh] md:h-auto p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[100vw] md:max-w-[900px] lg:max-w-[1000px] h-[100vh] md:h-auto md:max-h-[90vh] p-0 overflow-hidden md:rounded-lg fixed inset-0 md:inset-auto md:translate-x-[-50%] md:translate-y-[-50%] md:top-[50%] md:left-[50%]">
+        {/* 닫기 버튼 (상단 우측) */}
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="absolute top-4 right-4 z-50 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors md:bg-white md:hover:bg-gray-100 md:shadow-md"
+          aria-label="닫기"
+        >
+          <X className="w-5 h-5 text-white md:text-[#262626]" />
+        </button>
+
         {loading ? (
-          <div className="flex items-center justify-center h-[400px]">
+          <div className="flex items-center justify-center h-full min-h-[400px]">
             <p className="text-[#8e8e8e]">로딩 중...</p>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center h-[400px]">
+          <div className="flex items-center justify-center h-full min-h-[400px]">
             <p className="text-red-500">{error}</p>
           </div>
         ) : post ? (

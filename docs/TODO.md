@@ -85,7 +85,7 @@
   - [x] 페이지네이션 지원 (limit, offset)
   - [x] userId 파라미터 지원 (프로필 페이지용)
 
-
+## 4. 좋아요 기능
 
 - [x] `app/api/likes/route.ts`
   - [x] POST: 좋아요 추가

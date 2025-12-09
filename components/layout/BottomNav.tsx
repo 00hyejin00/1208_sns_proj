@@ -14,9 +14,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Home, Search, Plus, Heart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton } from "@clerk/nextjs";
+import CreatePostModal from "@/components/post/CreatePostModal";
 
 interface NavItem {
   href: string;
@@ -35,52 +37,80 @@ const navItems: NavItem[] = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-[50px] bg-white border-t border-[#dbdbdb] z-50 flex items-center justify-around px-2">
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        const isActive = pathname === item.href;
+    <>
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-[50px] bg-white border-t border-[#dbdbdb] z-50 flex items-center justify-around px-2">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          const isCreateButton = item.href === "/create";
 
-        // 프로필은 Clerk UserButton 사용
-        if (item.isProfile) {
+          // 프로필은 Clerk UserButton 사용
+          if (item.isProfile) {
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center justify-center w-12 h-12 rounded-lg transition-opacity",
+                  "hover:opacity-70",
+                  isActive && "opacity-100"
+                )}
+                aria-label={item.label}
+              >
+                <UserButton />
+              </Link>
+            );
+          }
+
+          // "만들기" 버튼은 모달 열기
+          if (isCreateButton) {
+            return (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className={cn(
+                  "flex items-center justify-center w-12 h-12 rounded-lg transition-colors",
+                  "hover:opacity-70"
+                )}
+                aria-label={item.label}
+              >
+                <Icon className="w-6 h-6 text-[#262626]" />
+              </button>
+            );
+          }
+
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center justify-center w-12 h-12 rounded-lg transition-opacity",
+                "flex items-center justify-center w-12 h-12 rounded-lg transition-colors",
                 "hover:opacity-70",
                 isActive && "opacity-100"
               )}
               aria-label={item.label}
             >
-              <UserButton />
+              <Icon
+                className={cn(
+                  "w-6 h-6",
+                  isActive ? "text-[#262626]" : "text-[#262626]"
+                )}
+              />
             </Link>
           );
-        }
+        })}
+      </nav>
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center justify-center w-12 h-12 rounded-lg transition-colors",
-              "hover:opacity-70",
-              isActive && "opacity-100"
-            )}
-            aria-label={item.label}
-          >
-            <Icon
-              className={cn(
-                "w-6 h-6",
-                isActive ? "text-[#262626]" : "text-[#262626]"
-              )}
-            />
-          </Link>
-        );
-      })}
-    </nav>
+      {/* 게시물 작성 모달 */}
+      <CreatePostModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+      />
+    </>
   );
 }
 

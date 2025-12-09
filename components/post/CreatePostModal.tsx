@@ -153,8 +153,8 @@ export default function CreatePostModal({
         // 버킷이 없는 경우 특별한 안내 메시지
         if (errorMessage.includes("bucket") || errorMessage.includes("Bucket")) {
           throw new Error(
-            "Storage 버킷이 없습니다. Supabase Dashboard에서 'uploads' 버킷을 생성해주세요.\n" +
-            "자세한 방법은 docs/create-uploads-bucket.md 파일을 참고하세요."
+            "Storage 버킷이 없습니다. Supabase Dashboard에서 'posts' 버킷을 생성해주세요.\n" +
+            "자세한 방법은 docs/create-posts-bucket.md 파일을 참고하세요."
           );
         }
         
