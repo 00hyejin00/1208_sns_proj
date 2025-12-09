@@ -12,20 +12,29 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal } from "lucide-react";
+import { MessageCircle, Send, Bookmark, MoreHorizontal } from "lucide-react";
 import type { PostWithDetails } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils/format";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { useState, useEffect, useRef } from "react";
+import LikeButton from "./LikeButton";
+import { useAuth } from "@clerk/nextjs";
 
 interface PostCardProps {
   post: PostWithDetails;
-  currentUserId?: string; // 현재 로그인한 사용자 ID (좋아요 상태 확인용)
+  currentUserId?: string; // 현재 로그인한 사용자 ID (Clerk user ID, 좋아요 상태 확인용)
 }
 
 export default function PostCard({ post, currentUserId }: PostCardProps) {
   const [showFullCaption, setShowFullCaption] = useState(false);
-  const [isLiked, setIsLiked] = useState(false); // 1차 MVP에서는 UI만, 나중에 API 연동
+  const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(post.likes_count);
+  const likeButtonRef = useRef<{ triggerDoubleTap: () => void }>(null);
+  const { isLoaded } = useAuth();
+
+  // 좋아요 수 동기화
+  useEffect(() => {
+    setLikesCount(post.likes_count);
+  }, [post.likes_count]);
 
   // 캡션이 2줄을 초과하는지 확인 (대략 100자 기준)
   const captionMaxLength = 100;
@@ -68,7 +77,7 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
         </button>
       </header>
 
-      {/* 이미지 영역 (1:1 정사각형) */}
+      {/* 이미지 영역 (1:1 정사각형) - 더블탭 좋아요 지원 */}
       <div className="relative aspect-square w-full bg-gray-100">
         <Image
           src={post.image_url}
@@ -78,26 +87,32 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
           sizes="(max-width: 768px) 100vw, 630px"
           priority={false}
         />
+        {/* 더블탭 감지를 위한 투명 오버레이 */}
+        <div
+          className="absolute inset-0 z-0 cursor-pointer"
+          onDoubleClick={() => {
+            // 더블탭 시 좋아요 (LikeButton에서 처리)
+            if (likeButtonRef.current && !isLiked) {
+              likeButtonRef.current.triggerDoubleTap();
+            }
+          }}
+        />
       </div>
 
       {/* 액션 버튼 (48px 높이) */}
       <div className="px-4 py-3 flex items-center justify-between h-[48px]">
         <div className="flex items-center gap-4">
           {/* 좋아요 버튼 */}
-          <button
-            type="button"
-            onClick={() => setIsLiked(!isLiked)}
-            className={cn(
-              "transition-transform active:scale-125",
-              isLiked && "text-[#ed4956]"
-            )}
-            aria-label={isLiked ? "좋아요 취소" : "좋아요"}
-          >
-            <Heart
-              className={cn("w-6 h-6", isLiked && "fill-current")}
-              strokeWidth={isLiked ? 0 : 1.5}
-            />
-          </button>
+          <LikeButton
+            ref={likeButtonRef}
+            postId={post.id}
+            initialLiked={isLiked}
+            initialLikesCount={likesCount}
+            onLikeChange={(liked, newCount) => {
+              setIsLiked(liked);
+              setLikesCount(newCount);
+            }}
+          />
           {/* 댓글 버튼 */}
           <button
             type="button"
@@ -128,9 +143,9 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
       {/* 컨텐츠 영역 */}
       <div className="px-4 pb-3 space-y-2">
         {/* 좋아요 수 */}
-        {post.likes_count > 0 && (
+        {likesCount > 0 && (
           <div className="font-semibold text-[#262626] text-sm">
-            좋아요 {post.likes_count.toLocaleString()}개
+            좋아요 {likesCount.toLocaleString()}개
           </div>
         )}
 
