@@ -121,17 +121,47 @@ export default function CreatePostModal({
       formData.append("image", selectedFile);
       formData.append("caption", caption);
 
+      console.log("Uploading post:", {
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        fileType: selectedFile.type,
+        captionLength: caption.length,
+      });
+
       // API 호출
       const response = await fetch("/api/posts", {
         method: "POST",
         body: formData,
       });
 
-      const data = await response.json();
+      // 응답이 JSON인지 확인
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        throw new Error(`서버 오류가 발생했습니다. (${response.status})`);
+      }
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "게시물 업로드에 실패했습니다.");
+        console.error("API error response:", data);
+        const errorMessage = data.error || "게시물 업로드에 실패했습니다.";
+        
+        // 버킷이 없는 경우 특별한 안내 메시지
+        if (errorMessage.includes("bucket") || errorMessage.includes("Bucket")) {
+          throw new Error(
+            "Storage 버킷이 없습니다. Supabase Dashboard에서 'uploads' 버킷을 생성해주세요.\n" +
+            "자세한 방법은 docs/create-uploads-bucket.md 파일을 참고하세요."
+          );
+        }
+        
+        throw new Error(errorMessage);
       }
+
+      console.log("Post uploaded successfully:", data);
 
       // 성공 시 모달 닫기 및 상태 초기화
       setSelectedFile(null);
@@ -142,7 +172,10 @@ export default function CreatePostModal({
       // PostFeed에 게시물 작성 완료 이벤트 전달
       window.dispatchEvent(new CustomEvent("postCreated"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "게시물 업로드에 실패했습니다.");
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : "게시물 업로드에 실패했습니다.";
+      setError(errorMessage);
       console.error("Error uploading post:", err);
     } finally {
       setUploading(false);

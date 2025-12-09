@@ -278,9 +278,16 @@ export async function POST(request: NextRequest) {
       .substring(7)}.${fileExt}`;
     const filePath = `${clerkUserId}/${fileName}`;
 
+    console.log("Attempting to upload to bucket 'uploads':", {
+      filePath,
+      fileName: imageFile.name,
+      fileSize: imageFile.size,
+      fileType: imageFile.type,
+    });
+
     // Supabase Storage에 이미지 업로드
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("posts")
+      .from("uploads")
       .upload(filePath, imageFile, {
         cacheControl: "3600",
         upsert: false,
@@ -288,9 +295,16 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error("Error uploading image:", uploadError);
+      
+      // 버킷이 없는 경우 특별한 에러 메시지
+      let errorMessage = uploadError.message || "Unknown error";
+      if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("bucket")) {
+        errorMessage = "Storage bucket 'uploads' not found. Please create it in Supabase Dashboard (Storage → New bucket → Name: 'uploads', Public: false).";
+      }
+      
       return NextResponse.json<ApiResponse<Post>>(
         {
-          error: "Failed to upload image",
+          error: `Failed to upload image: ${errorMessage}`,
           success: false,
         },
         { status: 500 }
@@ -300,7 +314,7 @@ export async function POST(request: NextRequest) {
     // 업로드된 이미지의 공개 URL 가져오기
     const {
       data: { publicUrl },
-    } = supabase.storage.from("posts").getPublicUrl(filePath);
+    } = supabase.storage.from("uploads").getPublicUrl(filePath);
 
     // posts 테이블에 게시물 데이터 저장
     const { data: postData, error: postError } = await supabase
@@ -316,11 +330,11 @@ export async function POST(request: NextRequest) {
     if (postError) {
       console.error("Error creating post:", postError);
       // 업로드된 이미지 삭제 (롤백)
-      await supabase.storage.from("posts").remove([filePath]);
+      await supabase.storage.from("uploads").remove([filePath]);
 
       return NextResponse.json<ApiResponse<Post>>(
         {
-          error: "Failed to create post",
+          error: `Failed to create post: ${postError.message || "Unknown error"}`,
           success: false,
         },
         { status: 500 }
@@ -335,7 +349,7 @@ export async function POST(request: NextRequest) {
     console.error("Unexpected error in POST /api/posts:", error);
     return NextResponse.json<ApiResponse<Post>>(
       {
-        error: "Internal server error",
+        error: `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}`,
         success: false,
       },
       { status: 500 }
