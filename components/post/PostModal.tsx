@@ -18,15 +18,19 @@
  * @see docs/PRD.md - 게시물 상세 모달 섹션
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { X, ChevronLeft, ChevronRight, Heart, MessageCircle, Send, Bookmark, MoreHorizontal } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import LikeButton from "./LikeButton";
 import CommentList from "@/components/comment/CommentList";
 import CommentForm from "@/components/comment/CommentForm";
@@ -55,7 +59,56 @@ export default function PostModal({
   const [likesCount, setLikesCount] = useState(0);
   const [commentsCount, setCommentsCount] = useState(0);
   const [comments, setComments] = useState<PostWithDetails["recent_comments"]>([]);
-  const { userId: currentUserId } = useAuth();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [currentSupabaseUserId, setCurrentSupabaseUserId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { userId: currentClerkUserId } = useAuth();
+
+  // 현재 사용자의 Supabase user ID 가져오기
+  useEffect(() => {
+    const fetchCurrentUserId = async () => {
+      if (!currentClerkUserId) {
+        setCurrentSupabaseUserId(null);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/users/me");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            setCurrentSupabaseUserId(data.data.id);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching current user ID:", err);
+      }
+    };
+
+    fetchCurrentUserId();
+  }, [currentClerkUserId]);
+
+  // 본인 게시물 여부 확인
+  const isOwnPost = post && currentSupabaseUserId ? currentSupabaseUserId === post.user_id : false;
+
+  // 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMenu]);
 
   // 현재 게시물의 인덱스 찾기
   const currentPostIndex = postId
@@ -146,11 +199,55 @@ export default function PostModal({
     fetchPost();
   };
 
+  // 게시물 삭제 핸들러
+  const handleDelete = async () => {
+    if (!postId) return;
+
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/posts/${postId}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "게시물 삭제에 실패했습니다.");
+      }
+
+      // 삭제 성공 시 모달 닫기
+      setShowDeleteDialog(false);
+      onOpenChange(false);
+
+      // 피드 새로고침 이벤트 발생
+      window.dispatchEvent(new CustomEvent("postDeleted", { detail: { postId } }));
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert(error instanceof Error ? error.message : "게시물 삭제에 실패했습니다.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[100vw] md:max-w-[900px] lg:max-w-[1000px] h-[100vh] md:h-auto md:max-h-[90vh] p-0 overflow-hidden md:rounded-lg fixed inset-0 md:inset-auto md:translate-x-[-50%] md:translate-y-[-50%] md:top-[50%] md:left-[50%]">
+        {/* 접근성을 위한 DialogTitle (시각적으로 숨김) */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>
+            {loading
+              ? "게시물 로딩 중"
+              : error
+              ? "게시물 로드 오류"
+              : post
+              ? `${post.user.name}님의 게시물`
+              : "게시물 상세"}
+          </DialogTitle>
+        </DialogHeader>
+
         {/* 닫기 버튼 (상단 우측) */}
         <button
           type="button"
@@ -187,8 +284,14 @@ export default function PostModal({
                 <button
                   type="button"
                   onClick={handlePrevious}
-                  className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                  className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2"
                   aria-label="이전 게시물"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handlePrevious();
+                    }
+                  }}
                 >
                   <ChevronLeft className="w-6 h-6 text-white" />
                 </button>
@@ -197,8 +300,14 @@ export default function PostModal({
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                  className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2"
                   aria-label="다음 게시물"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleNext();
+                    }
+                  }}
                 >
                   <ChevronRight className="w-6 h-6 text-white" />
                 </button>
@@ -224,13 +333,36 @@ export default function PostModal({
                     {post.user.name}
                   </Link>
                 </div>
-                <button
-                  type="button"
-                  className="p-1 hover:opacity-70 transition-opacity"
-                  aria-label="더보기"
-                >
-                  <MoreHorizontal className="w-5 h-5 text-[#262626]" />
-                </button>
+                {/* 더보기 메뉴 */}
+                {isOwnPost && (
+                  <div className="relative" ref={menuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowMenu(!showMenu)}
+                      className="p-1 hover:opacity-70 transition-opacity"
+                      aria-label="더보기"
+                    >
+                      <MoreHorizontal className="w-5 h-5 text-[#262626]" />
+                    </button>
+
+                    {/* 드롭다운 메뉴 */}
+                    {showMenu && (
+                      <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-[#dbdbdb] overflow-hidden z-50">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowDeleteDialog(true);
+                            setShowMenu(false);
+                          }}
+                          className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          삭제
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 댓글 목록 (스크롤 가능) */}
@@ -325,6 +457,34 @@ export default function PostModal({
             </div>
           </div>
         ) : null}
+
+        {/* 삭제 확인 다이얼로그 */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>게시물 삭제</DialogTitle>
+              <DialogDescription>
+                정말로 이 게시물을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={isDeleting}
+              >
+                취소
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "삭제 중..." : "삭제"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

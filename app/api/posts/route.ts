@@ -301,12 +301,33 @@ export async function POST(request: NextRequest) {
       .substring(7)}.${fileExt}`;
     const filePath = `${clerkUserId}/${fileName}`;
 
-    console.log("Attempting to upload to bucket 'posts':", {
-      filePath,
-      fileName: imageFile.name,
-      fileSize: imageFile.size,
-      fileType: imageFile.type,
-    });
+    // 이미지 업로드
+    // 버킷 존재 여부 확인
+    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+    
+    if (bucketsError) {
+      console.error("Error listing buckets:", bucketsError);
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: "Failed to access storage. Please check your Supabase configuration.",
+          success: false,
+        },
+        { status: 500 }
+      );
+    }
+
+    const postsBucketExists = buckets?.some((bucket) => bucket.name === "posts");
+    
+    if (!postsBucketExists) {
+      console.error("Posts bucket not found. Available buckets:", buckets?.map((b) => b.name));
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: "Storage bucket 'posts' not found. Please create it in Supabase Dashboard (Storage → New bucket → Name: 'posts', Public: true).",
+          success: false,
+        },
+        { status: 500 }
+      );
+    }
 
     // Supabase Storage에 이미지 업로드
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -321,7 +342,7 @@ export async function POST(request: NextRequest) {
       
       // 버킷이 없는 경우 특별한 에러 메시지
       let errorMessage = uploadError.message || "Unknown error";
-      if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("bucket")) {
+      if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("bucket") || uploadError.message?.includes("does not exist")) {
         errorMessage = "Storage bucket 'posts' not found. Please create it in Supabase Dashboard (Storage → New bucket → Name: 'posts', Public: true).";
       }
       

@@ -60,8 +60,10 @@ export default function Sidebar() {
                   className={cn(
                     "flex items-center gap-4 px-3 py-3 rounded-lg transition-colors",
                     "hover:bg-gray-50",
-                    "text-left w-full"
+                    "text-left w-full",
+                    "focus:outline-none focus:ring-2 focus:ring-[#0095f6] focus:ring-offset-2"
                   )}
+                  aria-label={item.label}
                 >
                   <Icon className="w-6 h-6 flex-shrink-0 text-[#262626]" />
                   <span className="text-base text-[#262626] font-normal">

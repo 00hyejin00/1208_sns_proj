@@ -10,12 +10,13 @@
  * @see docs/PRD.md - 홈 피드 페이지 섹션
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import PostCard from "./PostCard";
 import PostCardSkeleton from "./PostCardSkeleton";
 import PostModal from "./PostModal";
 import type { PostWithDetails, ApiResponse } from "@/lib/types";
 import { useAuth } from "@clerk/nextjs";
+import { handleApiResponse, getErrorMessage } from "@/lib/utils/error-handler";
 
 interface PostFeedProps {
   userId?: string; // 특정 사용자의 게시물만 표시 (프로필 페이지용)
@@ -54,27 +55,33 @@ export default function PostFeed({ userId, initialPosts }: PostFeedProps) {
         }
 
         const response = await fetch(`/api/posts?${params.toString()}`);
-        const data: ApiResponse<PostWithDetails[]> = await response.json();
+        const result = await handleApiResponse<PostWithDetails[]>(response);
 
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || "Failed to fetch posts");
+        if (!result.success) {
+          const errorMessage = "error" in result ? result.error : "게시물을 불러오는데 실패했습니다.";
+          throw new Error(errorMessage);
         }
 
-        if (data.data) {
-          if (data.data.length === 0) {
+        if (result.data) {
+          if (result.data.length === 0) {
             setHasMore(false);
           } else {
-            setPosts((prev) => [...prev, ...data.data!]);
-            setOffset(currentOffset + data.data.length);
+            // 중복 제거: post.id를 기준으로 유니크한 게시물만 유지
+            setPosts((prev) => {
+              const existingIds = new Set(prev.map((p) => p.id));
+              const newPosts = result.data!.filter((post) => !existingIds.has(post.id));
+              return [...prev, ...newPosts];
+            });
+            setOffset(currentOffset + result.data.length);
             // 다음 페이지가 더 있는지 확인
-            if (data.data.length < POSTS_PER_PAGE) {
+            if (result.data.length < POSTS_PER_PAGE) {
               setHasMore(false);
             }
           }
         }
       } catch (err) {
         console.error("Error fetching posts:", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch posts");
+        setError(getErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -120,10 +127,11 @@ export default function PostFeed({ userId, initialPosts }: PostFeedProps) {
     setPosts([]);
     setOffset(0);
     setHasMore(true);
+    setError(null);
     fetchPosts(0);
   }, [fetchPosts]);
 
-  // 전역 이벤트 리스너: 게시물 작성 완료 시 새로고침
+  // 전역 이벤트 리스너: 게시물 작성/삭제 완료 시 새로고침
   useEffect(() => {
     const handlePostCreated = () => {
       refreshPosts();
@@ -133,12 +141,19 @@ export default function PostFeed({ userId, initialPosts }: PostFeedProps) {
       refreshPosts();
     };
 
+    const handlePostDeleted = (e: CustomEvent<{ postId: string }>) => {
+      // 삭제된 게시물을 목록에서 제거
+      setPosts((prev) => prev.filter((post) => post.id !== e.detail.postId));
+    };
+
     window.addEventListener("postCreated", handlePostCreated);
     window.addEventListener("commentAdded", handleCommentAdded);
+    window.addEventListener("postDeleted", handlePostDeleted as EventListener);
 
     return () => {
       window.removeEventListener("postCreated", handlePostCreated);
       window.removeEventListener("commentAdded", handleCommentAdded);
+      window.removeEventListener("postDeleted", handlePostDeleted as EventListener);
     };
   }, [refreshPosts]);
 
@@ -182,6 +197,10 @@ export default function PostFeed({ userId, initialPosts }: PostFeedProps) {
               post={post}
               currentUserId={currentUserId || undefined}
               onPostClick={handlePostClick}
+              onPostDeleted={(postId) => {
+                // 삭제된 게시물을 목록에서 제거
+                setPosts((prev) => prev.filter((p) => p.id !== postId));
+              }}
             />
           ))}
         </>

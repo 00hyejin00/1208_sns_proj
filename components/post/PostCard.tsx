@@ -12,29 +12,94 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { MessageCircle, Send, Bookmark, MoreHorizontal } from "lucide-react";
+import { MessageCircle, Send, Bookmark, MoreHorizontal, Trash2 } from "lucide-react";
 import type { PostWithDetails } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils/format";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from "react";
 import LikeButton from "./LikeButton";
 import CommentForm from "@/components/comment/CommentForm";
 import CommentList from "@/components/comment/CommentList";
 import { useAuth } from "@clerk/nextjs";
+import { handleApiResponse, getErrorMessage } from "@/lib/utils/error-handler";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface PostCardProps {
   post: PostWithDetails;
   currentUserId?: string; // 현재 로그인한 사용자 ID (Clerk user ID, 좋아요 상태 확인용)
   onPostClick?: (postId: string) => void; // 게시물 클릭 시 호출되는 콜백
+  onPostDeleted?: (postId: string) => void; // 게시물 삭제 시 호출되는 콜백
 }
 
-export default function PostCard({ post, currentUserId, onPostClick }: PostCardProps) {
+const PostCard = memo(function PostCard({
+  post,
+  currentUserId,
+  onPostClick,
+  onPostDeleted,
+}: PostCardProps) {
   const [showFullCaption, setShowFullCaption] = useState(false);
   const [isLiked, setIsLiked] = useState(post.is_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
   const [comments, setComments] = useState(post.recent_comments);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [currentSupabaseUserId, setCurrentSupabaseUserId] = useState<string | null>(null);
   const likeButtonRef = useRef<{ triggerDoubleTap: () => void }>(null);
-  const { isLoaded } = useAuth();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { isLoaded, userId: currentClerkUserId } = useAuth();
+
+  // 현재 사용자의 Supabase user ID 가져오기
+  useEffect(() => {
+    const fetchCurrentUserId = async () => {
+      if (!currentClerkUserId) {
+        setCurrentSupabaseUserId(null);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/users/me");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            setCurrentSupabaseUserId(data.data.id);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching current user ID:", err);
+      }
+    };
+
+    fetchCurrentUserId();
+  }, [currentClerkUserId]);
+
+  // 본인 게시물 여부 확인
+  const isOwnPost = currentSupabaseUserId === post.user_id;
+
+  // 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMenu]);
 
   // 좋아요 상태 및 좋아요 수 동기화
   useEffect(() => {
@@ -48,8 +113,8 @@ export default function PostCard({ post, currentUserId, onPostClick }: PostCardP
     setComments(post.recent_comments);
   }, [post.comments_count, post.recent_comments]);
 
-  // 댓글 추가 후 콜백
-  const handleCommentAdded = () => {
+  // 댓글 추가 후 콜백 - useCallback으로 최적화
+  const handleCommentAdded = useCallback(() => {
     // 댓글 추가 이벤트 발생 (PostFeed에서 새로고침)
     window.dispatchEvent(new CustomEvent("commentAdded", { detail: { postId: post.id } }));
     
@@ -58,19 +123,57 @@ export default function PostCard({ post, currentUserId, onPostClick }: PostCardP
     
     // 실제로는 API에서 최신 댓글을 다시 가져와야 하지만,
     // 일단 카운트만 증가시키고 PostFeed에서 전체 새로고침
+  }, [post.id]);
+
+  // 게시물 삭제 핸들러
+  const handleDelete = async () => {
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/posts/${post.id}`, {
+        method: "DELETE",
+      });
+
+      const result = await handleApiResponse<unknown>(response);
+
+      if (!result.success) {
+        const errorMessage = "error" in result ? result.error : "게시물 삭제에 실패했습니다.";
+        throw new Error(errorMessage);
+      }
+
+      // 삭제 성공 시 콜백 호출
+      onPostDeleted?.(post.id);
+      setShowDeleteDialog(false);
+      setShowMenu(false);
+
+      // 피드 새로고침 이벤트 발생
+      window.dispatchEvent(new CustomEvent("postDeleted", { detail: { postId: post.id } }));
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert(getErrorMessage(error));
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  // 캡션이 2줄을 초과하는지 확인 (대략 100자 기준)
+  // 캡션이 2줄을 초과하는지 확인 (대략 100자 기준) - useMemo로 최적화
   const captionMaxLength = 100;
-  const shouldTruncate = post.caption && post.caption.length > captionMaxLength;
-  const displayCaption = showFullCaption
-    ? post.caption
-    : post.caption && post.caption.length > captionMaxLength
-    ? post.caption.slice(0, captionMaxLength) + "..."
-    : post.caption;
+  const shouldTruncate = useMemo(() => {
+    return post.caption ? post.caption.length > captionMaxLength : false;
+  }, [post.caption, captionMaxLength]);
+  
+  const displayCaption = useMemo(() => {
+    if (!post.caption) return "";
+    return showFullCaption
+      ? post.caption
+      : shouldTruncate
+      ? post.caption.slice(0, captionMaxLength) + "..."
+      : post.caption;
+  }, [post.caption, showFullCaption, shouldTruncate, captionMaxLength]);
 
   return (
-    <article className="bg-white rounded-lg border border-[#dbdbdb] mb-4 overflow-hidden max-w-full">
+    <>
+      <article className="bg-white rounded-lg border border-[#dbdbdb] mb-4 overflow-hidden max-w-full">
       {/* 헤더 (60px 높이) */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-[#dbdbdb] h-[60px]">
         <div className="flex items-center gap-3">
@@ -92,13 +195,33 @@ export default function PostCard({ post, currentUserId, onPostClick }: PostCardP
           </Link>
         </div>
         {/* ⋯ 메뉴 */}
-        <button
-          type="button"
-          className="p-1 hover:opacity-70 transition-opacity"
-          aria-label="더보기"
-        >
-          <MoreHorizontal className="w-5 h-5 text-[#262626]" />
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setShowMenu(!showMenu)}
+            className="p-1 hover:opacity-70 transition-opacity"
+            aria-label="더보기"
+          >
+            <MoreHorizontal className="w-5 h-5 text-[#262626]" />
+          </button>
+
+          {/* 드롭다운 메뉴 */}
+          {showMenu && isOwnPost && (
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-[#dbdbdb] overflow-hidden z-50">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteDialog(true);
+                  setShowMenu(false);
+                }}
+                className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                삭제
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* 이미지 영역 (1:1 정사각형) - 더블탭 좋아요 지원 */}
@@ -231,9 +354,40 @@ export default function PostCard({ post, currentUserId, onPostClick }: PostCardP
         {/* 시간 표시 */}
         <div className="text-[#8e8e8e] text-xs uppercase">
           {formatRelativeTime(post.created_at)}
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
+
+      {/* 삭제 확인 다이얼로그 */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>게시물 삭제</DialogTitle>
+            <DialogDescription>
+              정말로 이 게시물을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isDeleting}
+            >
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "삭제 중..." : "삭제"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
-}
+});
+
+export default PostCard;
 

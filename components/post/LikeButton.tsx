@@ -183,7 +183,7 @@ const LikeButton = forwardRef<LikeButtonHandle, LikeButtonProps>(function LikeBu
         <div
           className={cn(
             "absolute inset-0 flex items-center justify-center pointer-events-none z-10",
-            "animate-[fadeInOut_1s_ease-in-out]"
+            "animate-fade-in-out"
           )}
         >
           <Heart
@@ -202,9 +202,8 @@ const LikeButton = forwardRef<LikeButtonHandle, LikeButtonProps>(function LikeBu
         onClick={handleClick}
         onDoubleClick={handleDoubleTap}
         className={cn(
-          "transition-transform duration-150",
-          "active:scale-125",
-          isAnimating && "scale-[1.3]",
+          "transition-transform duration-150 ease-out",
+          isAnimating ? "scale-[1.3]" : "scale-100",
           className
         )}
         aria-label={isLiked ? "좋아요 취소" : "좋아요"}
@@ -218,28 +217,6 @@ const LikeButton = forwardRef<LikeButtonHandle, LikeButtonProps>(function LikeBu
           strokeWidth={isLiked ? 0 : 1.5}
         />
       </button>
-
-      {/* 더블탭 애니메이션 스타일 */}
-      <style jsx>{`
-        @keyframes fadeInOut {
-          0% {
-            opacity: 0;
-            transform: scale(0.8);
-          }
-          10% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          90% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(1.2);
-          }
-        }
-      `}</style>
     </div>
   );
 });

@@ -2,16 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@/lib/supabase/server";
 import { getServiceRoleClient } from "@/lib/supabase/service-role";
-import type { ApiResponse, PostWithDetails } from "@/lib/types";
+import type { ApiResponse, PostWithDetails, Post } from "@/lib/types";
 
 /**
  * @file app/api/posts/[postId]/route.ts
- * @description 게시물 상세 조회 API
+ * @description 게시물 상세 조회 및 삭제 API
  *
  * GET /api/posts/[postId] - 게시물 상세 정보 조회
  * - 게시물 정보
  * - 사용자 정보
  * - 전체 댓글 목록 (최신순)
+ *
+ * DELETE /api/posts/[postId] - 게시물 삭제
+ * - 본인만 삭제 가능 (인증 검증)
+ * - Supabase Storage에서 이미지 삭제
+ * - posts 테이블에서 게시물 삭제 (CASCADE로 관련 데이터 자동 삭제)
  *
  * @see docs/PRD.md - 게시물 상세 모달 섹션
  */
@@ -172,6 +177,175 @@ export async function GET(
   } catch (error) {
     console.error("Unexpected error in GET /api/posts/[postId]:", error);
     return NextResponse.json<ApiResponse<PostWithDetails>>(
+      {
+        error: "Internal server error",
+        success: false,
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Clerk user ID를 Supabase user ID로 변환
+ */
+async function getSupabaseUserId(clerkUserId: string): Promise<string | null> {
+  const supabase = getServiceRoleClient();
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id")
+    .eq("clerk_id", clerkUserId)
+    .single();
+
+  if (error || !data) {
+    console.error("Error fetching user from Supabase:", error);
+    return null;
+  }
+
+  return data.id;
+}
+
+/**
+ * Storage URL에서 파일 경로 추출
+ * 예: https://xxx.supabase.co/storage/v1/object/public/posts/user_xxx/file.jpg
+ * -> posts/user_xxx/file.jpg
+ */
+function extractFilePathFromUrl(imageUrl: string): string | null {
+  try {
+    const url = new URL(imageUrl);
+    const pathParts = url.pathname.split("/");
+    const publicIndex = pathParts.indexOf("public");
+    
+    if (publicIndex === -1 || publicIndex === pathParts.length - 1) {
+      return null;
+    }
+    
+    // public 다음의 경로를 가져옴 (예: posts/user_xxx/file.jpg)
+    return pathParts.slice(publicIndex + 1).join("/");
+  } catch (error) {
+    console.error("Error extracting file path from URL:", error);
+    return null;
+  }
+}
+
+/**
+ * DELETE /api/posts/[postId] - 게시물 삭제
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ postId: string }> }
+) {
+  try {
+    const { postId } = await params;
+
+    if (!postId) {
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: "postId is required",
+          success: false,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Clerk 인증 확인
+    const { userId: clerkUserId } = await auth();
+
+    if (!clerkUserId) {
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: "Unauthorized",
+          success: false,
+        },
+        { status: 401 }
+      );
+    }
+
+    // Clerk user ID를 Supabase user ID로 변환
+    const supabaseUserId = await getSupabaseUserId(clerkUserId);
+
+    if (!supabaseUserId) {
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: "User not found in database",
+          success: false,
+        },
+        { status: 404 }
+      );
+    }
+
+    // Supabase 클라이언트 생성
+    const supabase = getServiceRoleClient();
+
+    // 게시물 정보 가져오기 (본인 게시물인지 확인 및 이미지 URL 가져오기)
+    const { data: post, error: postError } = await supabase
+      .from("posts")
+      .select("id, user_id, image_url")
+      .eq("id", postId)
+      .single();
+
+    if (postError || !post) {
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: "Post not found",
+          success: false,
+        },
+        { status: 404 }
+      );
+    }
+
+    // 본인 게시물인지 확인
+    if (post.user_id !== supabaseUserId) {
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: "Forbidden: You can only delete your own posts",
+          success: false,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Storage에서 이미지 삭제
+    if (post.image_url) {
+      const filePath = extractFilePathFromUrl(post.image_url);
+      
+      if (filePath) {
+        const { error: storageError } = await supabase.storage
+          .from("posts")
+          .remove([filePath]);
+
+        if (storageError) {
+          console.error("Error deleting image from storage:", storageError);
+          // Storage 삭제 실패해도 게시물은 삭제 진행 (이미지가 없을 수 있음)
+        }
+      }
+    }
+
+    // posts 테이블에서 게시물 삭제 (CASCADE로 관련 데이터 자동 삭제)
+    const { error: deleteError } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId);
+
+    if (deleteError) {
+      console.error("Error deleting post:", deleteError);
+      return NextResponse.json<ApiResponse<Post>>(
+        {
+          error: `Failed to delete post: ${deleteError.message || "Unknown error"}`,
+          success: false,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json<ApiResponse<null>>({
+      data: null,
+      success: true,
+    });
+  } catch (error) {
+    console.error("Unexpected error in DELETE /api/posts/[postId]:", error);
+    return NextResponse.json<ApiResponse<Post>>(
       {
         error: "Internal server error",
         success: false,

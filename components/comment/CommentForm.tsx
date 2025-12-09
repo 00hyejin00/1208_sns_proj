@@ -18,6 +18,7 @@
 import { useState, FormEvent, KeyboardEvent } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { handleApiResponse, getErrorMessage } from "@/lib/utils/error-handler";
 
 interface CommentFormProps {
   postId: string;
@@ -68,10 +69,11 @@ export default function CommentForm({
         }),
       });
 
-      const data = await response.json();
+      const result = await handleApiResponse<unknown>(response);
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "댓글 작성에 실패했습니다.");
+      if (!result.success) {
+        const errorMessage = "error" in result ? result.error : "댓글 작성에 실패했습니다.";
+        throw new Error(errorMessage);
       }
 
       // 성공 시 입력 필드 초기화
@@ -82,7 +84,7 @@ export default function CommentForm({
         onCommentAdded();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "댓글 작성에 실패했습니다.");
+      setError(getErrorMessage(err));
       console.error("Error submitting comment:", err);
     } finally {
       setIsSubmitting(false);

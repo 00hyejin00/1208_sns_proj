@@ -9,6 +9,7 @@
  */
 
 import { SignIn } from "@clerk/nextjs";
+import Link from "next/link";
 
 export default function SignInPage() {
   return (
@@ -50,12 +51,12 @@ export default function SignInPage() {
         <div className="bg-white border border-[#dbdbdb] rounded-lg p-6 text-center">
           <p className="text-sm text-[#262626]">
             계정이 없으신가요?{" "}
-            <a
+            <Link
               href="/sign-up"
               className="text-[#0095f6] font-semibold hover:text-[#1877f2]"
             >
               가입하기
-            </a>
+            </Link>
           </p>
         </div>
       </div>

@@ -18,6 +18,7 @@
 
 import { useState, useRef, ChangeEvent, useEffect } from "react";
 import Image from "next/image";
+import { handleApiResponse, getErrorMessage } from "@/lib/utils/error-handler";
 import {
   Dialog,
   DialogContent,
@@ -121,37 +122,19 @@ export default function CreatePostModal({
       formData.append("image", selectedFile);
       formData.append("caption", caption);
 
-      console.log("Uploading post:", {
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        fileType: selectedFile.type,
-        captionLength: caption.length,
-      });
-
       // API 호출
       const response = await fetch("/api/posts", {
         method: "POST",
         body: formData,
       });
 
-      // 응답이 JSON인지 확인
-      const contentType = response.headers.get("content-type");
-      let data;
-      
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.error("Non-JSON response:", text);
-        throw new Error(`서버 오류가 발생했습니다. (${response.status})`);
-      }
+      const result = await handleApiResponse<unknown>(response);
 
-      if (!response.ok || !data.success) {
-        console.error("API error response:", data);
-        const errorMessage = data.error || "게시물 업로드에 실패했습니다.";
+      if (!result.success) {
+        const errorMessage = "error" in result ? result.error : "게시물 업로드에 실패했습니다.";
         
         // 버킷이 없는 경우 특별한 안내 메시지
-        if (errorMessage.includes("bucket") || errorMessage.includes("Bucket")) {
+        if (errorMessage.includes("bucket") || errorMessage.includes("Bucket") || errorMessage.includes("not found")) {
           throw new Error(
             "Storage 버킷이 없습니다. Supabase Dashboard에서 'posts' 버킷을 생성해주세요.\n" +
             "자세한 방법은 docs/create-posts-bucket.md 파일을 참고하세요."
@@ -160,8 +143,6 @@ export default function CreatePostModal({
         
         throw new Error(errorMessage);
       }
-
-      console.log("Post uploaded successfully:", data);
 
       // 성공 시 모달 닫기 및 상태 초기화
       setSelectedFile(null);

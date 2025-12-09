@@ -17,13 +17,14 @@
  * @see docs/PRD.md - 댓글 기능 섹션
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import Link from "next/link";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useClerkSupabaseClient } from "@/lib/supabase/clerk-client";
 import { formatRelativeTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import { handleApiResponse, getErrorMessage } from "@/lib/utils/error-handler";
 
 interface CommentUser {
   id: string;
@@ -47,7 +48,7 @@ interface CommentListProps {
   onCommentDeleted?: () => void; // 댓글 삭제 후 콜백
 }
 
-export default function CommentList({
+const CommentList = memo(function CommentList({
   postId,
   initialComments = [],
   maxDisplay,
@@ -115,10 +116,11 @@ export default function CommentList({
         body: JSON.stringify({ commentId }),
       });
 
-      const data = await response.json();
+      const result = await handleApiResponse<unknown>(response);
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "댓글 삭제에 실패했습니다.");
+      if (!result.success) {
+        const errorMessage = "error" in result ? result.error : "댓글 삭제에 실패했습니다.";
+        throw new Error(errorMessage);
       }
 
       // 댓글 목록에서 제거
@@ -130,16 +132,19 @@ export default function CommentList({
       }
     } catch (err) {
       console.error("Error deleting comment:", err);
-      alert(err instanceof Error ? err.message : "댓글 삭제에 실패했습니다.");
+      alert(getErrorMessage(err));
     } finally {
       setDeletingId(null);
     }
   };
 
-  // 표시할 댓글 목록 (최신순 정렬)
-  const displayComments = maxDisplay
-    ? [...comments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, maxDisplay)
-    : [...comments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  // 표시할 댓글 목록 (최신순 정렬) - useMemo로 최적화
+  const displayComments = useMemo(() => {
+    const sorted = [...comments].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    return maxDisplay ? sorted.slice(0, maxDisplay) : sorted;
+  }, [comments, maxDisplay]);
 
   if (displayComments.length === 0) {
     return null;
@@ -184,5 +189,7 @@ export default function CommentList({
       })}
     </div>
   );
-}
+});
+
+export default CommentList;
 
