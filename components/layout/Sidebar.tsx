@@ -14,8 +14,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Home, Search, Plus, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CreatePostModal from "@/components/post/CreatePostModal";
 
 interface NavItem {
   href: string;
@@ -32,9 +34,11 @@ const navItems: NavItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   return (
-    <aside className="fixed left-0 top-0 h-screen bg-white border-r border-[#dbdbdb] z-40 hidden md:block">
+    <>
+      <aside className="fixed left-0 top-0 h-screen bg-white border-r border-[#dbdbdb] z-40 hidden md:block">
       {/* Desktop: 244px 너비, 아이콘 + 텍스트 */}
       <div className="hidden lg:flex flex-col w-[244px] h-full pt-8 px-4">
         <div className="mb-8">
@@ -44,7 +48,30 @@ export default function Sidebar() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+            const isCreateButton = item.href === "/create";
 
+            // "만들기" 버튼은 모달 열기
+            if (isCreateButton) {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className={cn(
+                    "flex items-center gap-4 px-3 py-3 rounded-lg transition-colors",
+                    "hover:bg-gray-50",
+                    "text-left w-full"
+                  )}
+                >
+                  <Icon className="w-6 h-6 flex-shrink-0 text-[#262626]" />
+                  <span className="text-base text-[#262626] font-normal">
+                    {item.label}
+                  </span>
+                </button>
+              );
+            }
+
+            // 나머지는 Link
             return (
               <Link
                 key={item.href}
@@ -86,7 +113,27 @@ export default function Sidebar() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+            const isCreateButton = item.href === "/create";
 
+            // "만들기" 버튼은 모달 열기
+            if (isCreateButton) {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className={cn(
+                    "flex items-center justify-center w-12 h-12 rounded-lg transition-colors",
+                    "hover:bg-gray-50"
+                  )}
+                  title={item.label}
+                >
+                  <Icon className="w-6 h-6 text-[#262626]" />
+                </button>
+              );
+            }
+
+            // 나머지는 Link
             return (
               <Link
                 key={item.href}
@@ -109,7 +156,14 @@ export default function Sidebar() {
           })}
         </nav>
       </div>
-    </aside>
+      </aside>
+
+      {/* 게시물 작성 모달 */}
+      <CreatePostModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+      />
+    </>
   );
 }
 
