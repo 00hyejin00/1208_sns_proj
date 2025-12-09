@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@/lib/supabase/server";
+import { getServiceRoleClient } from "@/lib/supabase/service-role";
 import type { ApiResponse, PostWithDetails } from "@/lib/types";
 
 /**
@@ -29,6 +31,24 @@ export async function GET(
         },
         { status: 400 }
       );
+    }
+
+    // Clerk 인증 확인 (선택사항 - 로그인하지 않은 사용자도 게시물을 볼 수 있음)
+    const { userId: clerkUserId } = await auth();
+    let currentSupabaseUserId: string | null = null;
+
+    // 로그인한 사용자의 경우 Supabase user ID 가져오기
+    if (clerkUserId) {
+      const supabaseService = getServiceRoleClient();
+      const { data: userData } = await supabaseService
+        .from("users")
+        .select("id")
+        .eq("clerk_id", clerkUserId)
+        .single();
+
+      if (userData) {
+        currentSupabaseUserId = userData.id;
+      }
     }
 
     // Supabase 클라이언트 생성
@@ -115,6 +135,19 @@ export async function GET(
       })
     );
 
+    // 현재 사용자가 이 게시물에 좋아요를 눌렀는지 확인
+    let isLiked = false;
+    if (currentSupabaseUserId) {
+      const { data: likeData } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("post_id", postId)
+        .eq("user_id", currentSupabaseUserId)
+        .single();
+
+      isLiked = !!likeData;
+    }
+
     const postWithDetails: PostWithDetails = {
       id: postStats.post_id,
       user_id: postStats.user_id,
@@ -124,6 +157,7 @@ export async function GET(
       updated_at: postStats.created_at, // post_stats에는 updated_at이 없으므로 created_at 사용
       likes_count: postStats.likes_count || 0,
       comments_count: postStats.comments_count || 0,
+      is_liked: isLiked, // 현재 사용자의 좋아요 상태
       user: {
         id: user?.id || postStats.user_id,
         name: user?.name || "Unknown",

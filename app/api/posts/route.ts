@@ -49,6 +49,15 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get("offset") || "0", 10);
     const userId = searchParams.get("userId");
 
+    // Clerk 인증 확인 (선택사항 - 로그인하지 않은 사용자도 게시물을 볼 수 있음)
+    const { userId: clerkUserId } = await auth();
+    let currentSupabaseUserId: string | null = null;
+
+    // 로그인한 사용자의 경우 Supabase user ID 가져오기
+    if (clerkUserId) {
+      currentSupabaseUserId = await getSupabaseUserId(clerkUserId);
+    }
+
     // Supabase 클라이언트 생성
     const supabase = await createClient();
 
@@ -152,6 +161,19 @@ export async function GET(request: NextRequest) {
           })
         );
 
+        // 현재 사용자가 이 게시물에 좋아요를 눌렀는지 확인
+        let isLiked = false;
+        if (currentSupabaseUserId) {
+          const { data: likeData } = await supabase
+            .from("likes")
+            .select("id")
+            .eq("post_id", post.post_id)
+            .eq("user_id", currentSupabaseUserId)
+            .single();
+
+          isLiked = !!likeData;
+        }
+
         return {
           id: post.post_id,
           user_id: post.user_id,
@@ -161,6 +183,7 @@ export async function GET(request: NextRequest) {
           updated_at: post.created_at, // post_stats에는 updated_at이 없으므로 created_at 사용
           likes_count: post.likes_count || 0,
           comments_count: post.comments_count || 0,
+          is_liked: isLiked, // 현재 사용자의 좋아요 상태
           user: {
             id: user?.id || post.user_id,
             name: user?.name || "Unknown",
@@ -278,7 +301,7 @@ export async function POST(request: NextRequest) {
       .substring(7)}.${fileExt}`;
     const filePath = `${clerkUserId}/${fileName}`;
 
-    console.log("Attempting to upload to bucket 'uploads':", {
+    console.log("Attempting to upload to bucket 'posts':", {
       filePath,
       fileName: imageFile.name,
       fileSize: imageFile.size,
@@ -287,7 +310,7 @@ export async function POST(request: NextRequest) {
 
     // Supabase Storage에 이미지 업로드
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("uploads")
+      .from("posts")
       .upload(filePath, imageFile, {
         cacheControl: "3600",
         upsert: false,
@@ -299,7 +322,7 @@ export async function POST(request: NextRequest) {
       // 버킷이 없는 경우 특별한 에러 메시지
       let errorMessage = uploadError.message || "Unknown error";
       if (uploadError.message?.includes("Bucket not found") || uploadError.message?.includes("bucket")) {
-        errorMessage = "Storage bucket 'uploads' not found. Please create it in Supabase Dashboard (Storage → New bucket → Name: 'uploads', Public: false).";
+        errorMessage = "Storage bucket 'posts' not found. Please create it in Supabase Dashboard (Storage → New bucket → Name: 'posts', Public: true).";
       }
       
       return NextResponse.json<ApiResponse<Post>>(
@@ -314,7 +337,7 @@ export async function POST(request: NextRequest) {
     // 업로드된 이미지의 공개 URL 가져오기
     const {
       data: { publicUrl },
-    } = supabase.storage.from("uploads").getPublicUrl(filePath);
+    } = supabase.storage.from("posts").getPublicUrl(filePath);
 
     // posts 테이블에 게시물 데이터 저장
     const { data: postData, error: postError } = await supabase
@@ -330,7 +353,7 @@ export async function POST(request: NextRequest) {
     if (postError) {
       console.error("Error creating post:", postError);
       // 업로드된 이미지 삭제 (롤백)
-      await supabase.storage.from("uploads").remove([filePath]);
+      await supabase.storage.from("posts").remove([filePath]);
 
       return NextResponse.json<ApiResponse<Post>>(
         {

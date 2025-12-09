@@ -25,7 +25,7 @@ interface FileObject {
   metadata?: Record<string, any>;
 }
 
-const STORAGE_BUCKET = process.env.NEXT_PUBLIC_STORAGE_BUCKET || "uploads";
+const STORAGE_BUCKET = process.env.NEXT_PUBLIC_STORAGE_BUCKET || "posts";
 
 export default function StorageTestPage() {
   const { user, isLoaded } = useUser();
@@ -124,7 +124,7 @@ export default function StorageTestPage() {
     try {
       const filePath = `${user.id}/${fileName}`;
       const { data, error } = await supabase.storage
-        .from("uploads")
+        .from("posts")
         .download(filePath);
 
       if (error) throw error;
@@ -154,7 +154,7 @@ export default function StorageTestPage() {
     try {
       const filePath = `${user.id}/${fileName}`;
       const { error } = await supabase.storage
-        .from("uploads")
+        .from("posts")
         .remove([filePath]);
 
       if (error) throw error;

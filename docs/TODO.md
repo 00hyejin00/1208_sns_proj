@@ -85,7 +85,7 @@
   - [x] 페이지네이션 지원 (limit, offset)
   - [x] userId 파라미터 지원 (프로필 페이지용)
 
-## 4. 좋아요 기능
+
 
 - [x] `app/api/likes/route.ts`
   - [x] POST: 좋아요 추가
@@ -121,7 +121,7 @@
 - [x] `components/comment/CommentList.tsx`
   - [x] 댓글 목록 렌더링
   - [x] PostCard: 최신 2개만 표시
-  - [ ] 상세 모달: 전체 댓글 + 스크롤 (게시물 상세 모달 구현 시 완료)
+  - [x] 상세 모달: 전체 댓글 + 스크롤 (게시물 상세 모달 구현 시 완료)
   - [x] 삭제 버튼 (본인만 표시)
 - [x] `components/comment/CommentForm.tsx`
   - [x] 댓글 입력 필드 ("댓글 달기...")

@@ -84,7 +84,7 @@ export default function PostModal({
         }
 
         setPost(data.data);
-        setIsLiked(false); // TODO: 실제 좋아요 상태 확인
+        setIsLiked(data.data.is_liked || false);
         setLikesCount(data.data.likes_count);
         setCommentsCount(data.data.comments_count);
         setComments(data.data.recent_comments);
@@ -224,7 +224,7 @@ export default function PostModal({
               </div>
 
               {/* 댓글 목록 (스크롤 가능) */}
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-0">
                 {/* 캡션 */}
                 {post.caption && (
                   <div className="text-[#262626] text-sm">
@@ -239,18 +239,25 @@ export default function PostModal({
                 )}
 
                 {/* 댓글 목록 */}
-                <CommentList
-                  postId={post.id}
-                  initialComments={comments.map((comment) => ({
-                    id: comment.id,
-                    content: comment.content,
-                    user: comment.user,
-                    created_at: comment.created_at,
-                    user_id: comment.user_id || "",
-                  }))}
-                  showDeleteButton={true}
-                  onCommentDeleted={handleCommentAdded}
-                />
+                {comments.length > 0 ? (
+                  <CommentList
+                    postId={post.id}
+                    initialComments={comments.map((comment) => ({
+                      id: comment.id,
+                      content: comment.content,
+                      user: comment.user,
+                      created_at: comment.created_at,
+                      user_id: comment.user_id || "",
+                    }))}
+                    showDeleteButton={true}
+                    onCommentDeleted={handleCommentAdded}
+                    // maxDisplay prop을 전달하지 않음 = 전체 댓글 표시
+                  />
+                ) : (
+                  <div className="text-center text-[#8e8e8e] text-sm py-8">
+                    댓글이 없습니다. 첫 댓글을 작성해보세요!
+                  </div>
+                )}
               </div>
 
               {/* 액션 버튼 및 좋아요 수 */}

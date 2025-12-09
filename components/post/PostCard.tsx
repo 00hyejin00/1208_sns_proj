@@ -29,17 +29,18 @@ interface PostCardProps {
 
 export default function PostCard({ post, currentUserId, onPostClick }: PostCardProps) {
   const [showFullCaption, setShowFullCaption] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
+  const [isLiked, setIsLiked] = useState(post.is_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [commentsCount, setCommentsCount] = useState(post.comments_count);
   const [comments, setComments] = useState(post.recent_comments);
   const likeButtonRef = useRef<{ triggerDoubleTap: () => void }>(null);
   const { isLoaded } = useAuth();
 
-  // 좋아요 수 동기화
+  // 좋아요 상태 및 좋아요 수 동기화
   useEffect(() => {
+    setIsLiked(post.is_liked || false);
     setLikesCount(post.likes_count);
-  }, [post.likes_count]);
+  }, [post.is_liked, post.likes_count]);
 
   // 댓글 수 및 댓글 목록 동기화
   useEffect(() => {
