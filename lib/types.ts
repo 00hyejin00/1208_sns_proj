@@ -97,6 +97,7 @@ export interface PostWithDetails extends PostStats {
       name: string;
     };
     created_at: string;
+    user_id?: string; // 삭제 권한 확인용 (선택사항)
   }>;
 }
 

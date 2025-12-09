@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import PostCard from "./PostCard";
 import PostCardSkeleton from "./PostCardSkeleton";
+import PostModal from "./PostModal";
 import type { PostWithDetails, ApiResponse } from "@/lib/types";
 import { useAuth } from "@clerk/nextjs";
 
@@ -31,6 +32,8 @@ export default function PostFeed({ userId, initialPosts }: PostFeedProps) {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(initialPosts?.length || 0);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // 게시물 가져오기 함수
   const fetchPosts = useCallback(
@@ -112,13 +115,74 @@ export default function PostFeed({ userId, initialPosts }: PostFeedProps) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 게시물 새로고침 함수 (외부에서 호출 가능하도록)
+  const refreshPosts = useCallback(() => {
+    setPosts([]);
+    setOffset(0);
+    setHasMore(true);
+    fetchPosts(0);
+  }, [fetchPosts]);
+
+  // 전역 이벤트 리스너: 게시물 작성 완료 시 새로고침
+  useEffect(() => {
+    const handlePostCreated = () => {
+      refreshPosts();
+    };
+
+    const handleCommentAdded = () => {
+      refreshPosts();
+    };
+
+    window.addEventListener("postCreated", handlePostCreated);
+    window.addEventListener("commentAdded", handleCommentAdded);
+
+    return () => {
+      window.removeEventListener("postCreated", handlePostCreated);
+      window.removeEventListener("commentAdded", handleCommentAdded);
+    };
+  }, [refreshPosts]);
+
+  // 게시물 모달 열기
+  const handlePostClick = (postId: string) => {
+    setSelectedPostId(postId);
+    setIsModalOpen(true);
+  };
+
+
+  // 모달 네비게이션 이벤트 리스너
+  useEffect(() => {
+    const handleModalNavigate = (e: CustomEvent<{ postId: string }>) => {
+      setSelectedPostId(e.detail.postId);
+      setIsModalOpen(true);
+    };
+
+    window.addEventListener("postModalNavigate", handleModalNavigate as EventListener);
+
+    return () => {
+      window.removeEventListener("postModalNavigate", handleModalNavigate as EventListener);
+    };
+  }, []);
+
+  // 모달이 닫힐 때 selectedPostId 초기화
+  const handleModalClose = (open: boolean) => {
+    setIsModalOpen(open);
+    if (!open) {
+      setSelectedPostId(null);
+    }
+  };
+
   return (
     <div className="w-full">
       {/* 게시물 목록 */}
       {posts.length > 0 ? (
         <>
           {posts.map((post) => (
-            <PostCard key={post.id} post={post} currentUserId={currentUserId || undefined} />
+            <PostCard
+              key={post.id}
+              post={post}
+              currentUserId={currentUserId || undefined}
+              onPostClick={handlePostClick}
+            />
           ))}
         </>
       ) : (
@@ -162,6 +226,14 @@ export default function PostFeed({ userId, initialPosts }: PostFeedProps) {
           모든 게시물을 불러왔습니다.
         </div>
       )}
+
+      {/* 게시물 상세 모달 */}
+      <PostModal
+        postId={selectedPostId}
+        open={isModalOpen}
+        onOpenChange={handleModalClose}
+        allPosts={posts}
+      />
     </div>
   );
 }

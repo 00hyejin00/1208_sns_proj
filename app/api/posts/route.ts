@@ -147,6 +147,7 @@ export async function GET(request: NextRequest) {
                 name: commentUser?.name || "Unknown",
               },
               created_at: comment.created_at,
+              user_id: comment.user_id, // 삭제 권한 확인용
             };
           })
         );

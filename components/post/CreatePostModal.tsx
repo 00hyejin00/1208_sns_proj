@@ -131,8 +131,8 @@ export default function CreatePostModal({
       setCaption("");
       onOpenChange(false);
 
-      // 페이지 새로고침하여 새 게시물 표시
-      router.refresh();
+      // PostFeed에 게시물 작성 완료 이벤트 전달
+      window.dispatchEvent(new CustomEvent("postCreated"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "게시물 업로드에 실패했습니다.");
       console.error("Error uploading post:", err);

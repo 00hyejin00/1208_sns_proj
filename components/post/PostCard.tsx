@@ -17,17 +17,22 @@ import type { PostWithDetails } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils/format";
 import { useState, useEffect, useRef } from "react";
 import LikeButton from "./LikeButton";
+import CommentForm from "@/components/comment/CommentForm";
+import CommentList from "@/components/comment/CommentList";
 import { useAuth } from "@clerk/nextjs";
 
 interface PostCardProps {
   post: PostWithDetails;
   currentUserId?: string; // 현재 로그인한 사용자 ID (Clerk user ID, 좋아요 상태 확인용)
+  onPostClick?: (postId: string) => void; // 게시물 클릭 시 호출되는 콜백
 }
 
-export default function PostCard({ post, currentUserId }: PostCardProps) {
+export default function PostCard({ post, currentUserId, onPostClick }: PostCardProps) {
   const [showFullCaption, setShowFullCaption] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
+  const [commentsCount, setCommentsCount] = useState(post.comments_count);
+  const [comments, setComments] = useState(post.recent_comments);
   const likeButtonRef = useRef<{ triggerDoubleTap: () => void }>(null);
   const { isLoaded } = useAuth();
 
@@ -35,6 +40,24 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
   useEffect(() => {
     setLikesCount(post.likes_count);
   }, [post.likes_count]);
+
+  // 댓글 수 및 댓글 목록 동기화
+  useEffect(() => {
+    setCommentsCount(post.comments_count);
+    setComments(post.recent_comments);
+  }, [post.comments_count, post.recent_comments]);
+
+  // 댓글 추가 후 콜백
+  const handleCommentAdded = () => {
+    // 댓글 추가 이벤트 발생 (PostFeed에서 새로고침)
+    window.dispatchEvent(new CustomEvent("commentAdded", { detail: { postId: post.id } }));
+    
+    // 낙관적 업데이트
+    setCommentsCount((prev) => prev + 1);
+    
+    // 실제로는 API에서 최신 댓글을 다시 가져와야 하지만,
+    // 일단 카운트만 증가시키고 PostFeed에서 전체 새로고침
+  };
 
   // 캡션이 2줄을 초과하는지 확인 (대략 100자 기준)
   const captionMaxLength = 100;
@@ -83,9 +106,10 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
           src={post.image_url}
           alt={post.caption || "게시물 이미지"}
           fill
-          className="object-cover"
+          className="object-cover cursor-pointer"
           sizes="(max-width: 768px) 100vw, 630px"
           priority={false}
+          onClick={() => onPostClick?.(post.id)}
         />
         {/* 더블탭 감지를 위한 투명 오버레이 */}
         <div
@@ -96,6 +120,7 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
               likeButtonRef.current.triggerDoubleTap();
             }
           }}
+          onClick={() => onPostClick?.(post.id)}
         />
       </div>
 
@@ -172,29 +197,35 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
         )}
 
         {/* 댓글 미리보기 */}
-        {post.comments_count > 0 && (
+        {commentsCount > 0 && (
           <div className="space-y-1">
-            {post.comments_count > 2 && (
+            {commentsCount > 2 && (
               <button
                 type="button"
+                onClick={() => onPostClick?.(post.id)}
                 className="text-[#8e8e8e] text-sm hover:opacity-70 transition-opacity"
               >
-                댓글 {post.comments_count}개 모두 보기
+                댓글 {commentsCount}개 모두 보기
               </button>
             )}
-            {post.recent_comments.slice(0, 2).map((comment) => (
-              <div key={comment.id} className="text-[#262626] text-sm">
-                <Link
-                  href={`/profile/${comment.user.id}`}
-                  className="font-semibold hover:opacity-70 transition-opacity mr-1"
-                >
-                  {comment.user.name}
-                </Link>
-                <span>{comment.content}</span>
-              </div>
-            ))}
+            <CommentList
+              postId={post.id}
+              initialComments={comments.map((comment) => ({
+                id: comment.id,
+                content: comment.content,
+                user: comment.user,
+                created_at: comment.created_at,
+                user_id: comment.user_id || "", // API에서 가져온 user_id 사용
+              }))}
+              maxDisplay={2}
+              showDeleteButton={false} // PostCard에서는 삭제 버튼 숨김
+              onCommentDeleted={handleCommentAdded}
+            />
           </div>
         )}
+
+        {/* 댓글 작성 폼 */}
+        <CommentForm postId={post.id} onCommentAdded={handleCommentAdded} />
 
         {/* 시간 표시 */}
         <div className="text-[#8e8e8e] text-xs uppercase">
