@@ -16,7 +16,7 @@
  * @see docs/PRD.md - 게시물 작성 섹션
  */
 
-import { useState, useRef, ChangeEvent } from "react";
+import { useState, useRef, ChangeEvent, useEffect } from "react";
 import Image from "next/image";
 import {
   Dialog,
@@ -49,6 +49,14 @@ export default function CreatePostModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { isLoaded, userId } = useAuth();
+
+  // 로그인하지 않은 사용자가 모달을 열려고 하면 로그인 페이지로 리다이렉트
+  useEffect(() => {
+    if (open && isLoaded && !userId) {
+      onOpenChange(false);
+      router.push("/sign-in");
+    }
+  }, [open, isLoaded, userId, onOpenChange, router]);
 
   // 파일 선택 핸들러
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
